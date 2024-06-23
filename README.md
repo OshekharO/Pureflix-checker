@@ -1,14 +1,20 @@
-# PureFlix Account Checker 🔍🔒
+PureFlix Checker
 
-![Python Version](https://img.shields.io/badge/python-3.8.6-blue.svg)
+A Python script to check PureFlix login credentials.
 
-This Python script verifies PureFlix accounts using a list of email and password pairs from a text file (`accounts.txt`). It checks credentials by sending HTTP requests to PureFlix's API and saves valid accounts to a file (`hits.txt`).
+**Usage**
 
-## Features 🚀
+1. Create a file named `accounts.txt` with your login credentials in the format `email:password` one per line.
+2. Run the script using `python main.py`.
+3. The script will check each credential and write the valid ones to a file named `hits.txt`.
 
-- **Parallel Verification**: Utilizes threads to verify multiple accounts simultaneously, improving processing speed.
-- **Real-time Writing**: Valid accounts are written directly to `hits.txt` as they are found.
-- **Configurable and Efficient**: Uses a reusable HTTP session to handle requests efficiently and manage network errors.
+**Note**
 
-![image](https://github.com/MrAnomalyss/Pureflix-checker/assets/122388906/89e54e35-a977-4b08-b15f-678468700aac)
+* This script uses a third-party authentication service, Applicaster, to handle login requests.
+* The URL used in this script is subject to change, so please check the PureFlix website for the latest URL.
+* This script is for educational purposes only and should not be used for malicious activities.
 
+**Requirements**
+
+* Python 3.x
+* `requests` library
