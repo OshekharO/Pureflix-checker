@@ -1,4 +1,4 @@
-PureFlix Checker
+## PureFlix Checker
 
 A Python script to check PureFlix login credentials.
 
